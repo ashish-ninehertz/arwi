@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Lock, Mail, AlertCircle, User } from 'lucide-react';
+import { Lock, Mail, AlertCircle, User, CheckCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface LoginFormData {
   email: string;
@@ -26,8 +27,26 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   const password = watch('password');
+
+  useEffect(() => {
+    // Check Supabase connection
+    if (!supabase) {
+      setSupabaseStatus('error');
+      setError('Supabase is not configured. Please check your environment variables.');
+    } else {
+      supabase.auth.getSession().then(({ error }) => {
+        if (error) {
+          setSupabaseStatus('error');
+          setError(`Supabase connection error: ${error.message}`);
+        } else {
+          setSupabaseStatus('connected');
+        }
+      });
+    }
+  }, []);
 
   const onLoginSubmit = async (data: LoginFormData) => {
     setLoading(true);
@@ -66,7 +85,7 @@ export function LoginPage() {
       setTimeout(() => {
         setIsSignup(false);
         setSuccess(null);
-      }, 3000);
+      }, 5000);
     }
   };
 
@@ -90,17 +109,38 @@ export function LoginPage() {
           </p>
         </div>
 
+        {/* Supabase Status Indicator */}
+        {supabaseStatus === 'checking' && (
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg flex items-start space-x-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+            <p className="text-sm text-text-secondary">Connecting to Supabase...</p>
+          </div>
+        )}
+
+        {supabaseStatus === 'connected' && !error && !success && (
+          <div className="mb-6 p-4 bg-success/10 border border-success rounded-lg flex items-start space-x-3">
+            <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-success">Connected to Supabase successfully</p>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 p-4 bg-error/10 border border-error rounded-lg flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-error">{error}</p>
+            <div className="flex-1">
+              <p className="text-sm text-error font-semibold mb-1">Error</p>
+              <p className="text-sm text-error">{error}</p>
+            </div>
           </div>
         )}
 
         {success && (
           <div className="mb-6 p-4 bg-success/10 border border-success rounded-lg flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-success">{success}</p>
+            <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-success font-semibold mb-1">Success!</p>
+              <p className="text-sm text-success">{success}</p>
+            </div>
           </div>
         )}
 
@@ -153,7 +193,7 @@ export function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || supabaseStatus !== 'connected'}
               className="w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in...' : 'Sign In'}
@@ -255,7 +295,7 @@ export function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || supabaseStatus !== 'connected'}
               className="w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 'Create Account'}
@@ -284,6 +324,16 @@ export function LoginPage() {
             )}
           </button>
         </div>
+
+        {/* Debug Info (only in development) */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 p-4 bg-gray-100 rounded-lg text-xs">
+            <p className="font-semibold mb-2">Debug Info:</p>
+            <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? '✅ Set' : '❌ Missing'}</p>
+            <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}</p>
+            <p>Status: {supabaseStatus}</p>
+          </div>
+        )}
       </motion.div>
     </div>
   );
